@@ -53,6 +53,53 @@ app.use(bodyParser.urlencoded({ extended: true }))
 /*
 Your code here
 */
+app.get("/authorize", (res, req) => {
+	const id = req.query.client_id;
+	const client = clients[id];
+	if(!client) return res.status(401).end();
+
+	const scope = req.query.scope.split(" ");
+
+	const containsScopes = containsAll(client.scopes, scope);
+	const requestId = randomString();
+
+	res.render("login", { client, scope, requestId })
+
+	return res.end(200)
+});
+
+app.post("/approve", (res, req) => {
+	const { userName, password, requestId } = req.body;
+	const clientReq = requests[requestId];
+	if(users[userName] !== password || !clientReq) return res.status(401);
+	delete requests[requestId];
+	const requestID = randomString();
+	authorizationCodes[requestID] = { clientReq, userName };
+	const { redirect_uri, state } = clientReq;
+	redirect_uri.searchParams.append('code', requestID);
+	redirect_uri.searchParams.append('state', state);
+	res.redirect(redirect_uri)
+
+})
+
+app.post('/token', (res, req) => {
+	const authorization = req.headers.authorization;
+	if(!authorization) res.status(401);
+
+	const { clientId, clientSecret } = decodeAuthCredentials(authorization)
+
+	const client = clients[clientId];
+	if(client.secret !== clientSecret) return res.status(401);
+
+	const {code} = req.body;
+	const authCode = authorizationCodes[code];
+	if(!authCode) return res.status(401);
+	delete authorizationCodes[code];
+
+	const token = jwt.sign(authCode.userName, authCode.clientReq.scope)
+
+	return res.status(200).json({access_token: token, token_type: "Bearer" })
+})
 
 const server = app.listen(config.port, "localhost", function () {
 	var host = server.address().address
