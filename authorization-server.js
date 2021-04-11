@@ -56,7 +56,7 @@ Your code here
 app.get("/authorize", (res, req) => {
 	const id = req.query.client_id;
 	const client = clients[id];
-	if(!client) return res.status(401).end();
+	if(!client) return res.status(401).send("Error: Client not authorized");
 
 	const scope = req.query.scope.split(" ");
 
@@ -71,7 +71,7 @@ app.get("/authorize", (res, req) => {
 app.post("/approve", (res, req) => {
 	const { userName, password, requestId } = req.body;
 	const clientReq = requests[requestId];
-	if(users[userName] !== password || !clientReq) return res.status(401);
+	if(users[userName] !== password || !clientReq) return res.status(401).send("Error: Client not authorized");
 	delete requests[requestId];
 	const requestID = randomString();
 	authorizationCodes[requestID] = { clientReq, userName };
@@ -84,16 +84,16 @@ app.post("/approve", (res, req) => {
 
 app.post('/token', (res, req) => {
 	const authorization = req.headers.authorization;
-	if(!authorization) res.status(401);
+	if(!authorization) res.status(401).send("Error: Client not authorized");
 
 	const { clientId, clientSecret } = decodeAuthCredentials(authorization)
 
 	const client = clients[clientId];
-	if(client.secret !== clientSecret) return res.status(401);
+	if(client.secret !== clientSecret) return res.status(401).send("Error: Client not authorized");
 
 	const {code} = req.body;
 	const authCode = authorizationCodes[code];
-	if(!authCode) return res.status(401);
+	if(!authCode) return res.status(401).send("Error: Client not authorized");
 	delete authorizationCodes[code];
 
 	const token = jwt.sign(authCode.userName, authCode.clientReq.scope)
